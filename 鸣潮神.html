@@ -1,0 +1,601 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>鸣潮：神降之时 · 雷霆搞笑版</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: "Microsoft YaHei", "WenQuanYi Micro Hei", SimHei, sans-serif; }
+body { background: #000; height: 100vh; overflow: hidden; touch-action: manipulation; }
+
+/* 游戏容器 */
+#game-container { width: 100vw; height: 100vh; position: relative; background: #333; overflow: hidden; }
+
+/* 背景层 - 使用相对坐标 */
+#bg-layer { 
+    position: absolute; 
+    top: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 100%; 
+    background-size: cover; 
+    background-position: center; 
+    transition: opacity 0.5s ease; 
+}
+
+/* 角色立绘层 - 使用相对坐标 */
+#char-layer { 
+    position: absolute; 
+    bottom: 0; 
+    left: 0; 
+    width: 100%; 
+    height: 75%; 
+    pointer-events: none; 
+    display: flex;
+    justify-content: center; /* 水平居中 */
+    align-items: flex-end; /* 垂直底部对齐 */
+}
+
+/* 单个角色立绘 - 相对坐标定位，保持比例不拉伸 */
+.char-sprite { 
+    height: 100%; /* 高度占满立绘层 */
+    width: auto; /* 宽度自适应，保持原图比例 */
+    max-width: 85%; /* 最大宽度限制，避免图片过大 */
+    object-fit: contain; /* 关键属性：保证图片完整显示且不变形 */
+    display: none; 
+    z-index: 2;
+}
+.char-sprite.active { display: block; }
+
+/* 对话文本框 */
+#dialog-box { 
+    position: absolute; 
+    bottom: 0; 
+    left: 0; 
+    width: 100%; 
+    padding: 4vw; 
+    background: rgba(0,0,0,0.75); /* 稍微调暗一点，让文字更清晰 */
+    border-top: 3px solid #fff; 
+    color: #fff; 
+    transition: transform 0.3s ease; 
+    z-index: 5;
+}
+#speaker { font-size: 5vw; font-weight: bold; color: #ffd700; margin-bottom: 2vw; }
+#dialog-text { font-size: 4.2vw; line-height: 1.5; margin-bottom: 2vw; min-height: 15vh; }
+
+/* 选项按钮 */
+#choices { 
+    position: absolute; 
+    bottom: 35vh; 
+    left: 50%; 
+    transform: translateX(-50%); 
+    width: 90%; 
+    display: none; 
+    flex-direction: column; 
+    gap: 2vh; 
+    z-index: 10; 
+}
+#choices.active { display: flex; }
+.choice-btn { 
+    padding: 3vh 4vw; 
+    background: rgba(50,50,100,0.8); 
+    border: 2px solid #4169e1; 
+    border-radius: 8px; 
+    color: #fff; 
+    font-size: 4.2vw; 
+    text-align: left; 
+    cursor: pointer; 
+    transition: all 0.2s ease; 
+}
+.choice-btn:hover, .choice-btn.selected { 
+    background: rgba(70,130,180,0.9); 
+    border-color: #87ceeb; 
+    transform: translateX(5px); 
+}
+
+/* 操作提示与好感度 */
+#hint { position: absolute; top: 2vh; right: 2vw; color: #fff; font-size: 3.5vw; background: rgba(0,0,0,0.5); padding: 1vh 2vw; border-radius: 4px; z-index: 10; }
+#affection { position: absolute; top: 2vh; left: 2vw; color: #ff69b4; font-size: 3.5vw; background: rgba(0,0,0,0.5); padding: 1vh 2vw; border-radius: 4px; z-index: 10; }
+
+/* 结束界面 */
+#end-screen { position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); color: #fff; display: none; flex-direction: column; justify-content: center; align-items: center; z-index: 100; }
+#end-screen.active { display: flex; }
+#end-screen h1 { font-size: 7vw; margin-bottom: 2vh; }
+#end-screen p { font-size: 4vw; }
+#restart-btn { margin-top: 4vh; padding: 2vh 6vw; background: #ffd700; color: #000; border: none; border-radius: 8px; font-size: 5vw; cursor: pointer; }
+</style>
+</head>
+<body>
+<div id="game-container">
+    <div id="bg-layer"></div>
+    <div id="char-layer">
+        <img class="char-sprite" id="shen_normal" src="https://t2.chatglm.cn/file/6a3963dc8afe0570117ad31b.png?expired_at=1782578016&sign=e3df60662cb4e419b24eb4e8fb3d4a05&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="鸣潮神-常态">
+        <img class="char-sprite" id="shen_angry" src="https://t2.chatglm.cn/file/6a3963dd4899faa3ec1f4a53.png?expired_at=1782578016&sign=cd2eb2937e31aed7674052293b39438e&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="鸣潮神-愤怒">
+        <img class="char-sprite" id="shen_soft" src="https://t2.chatglm.cn/file/6a3963dd7422736f62582960.png?expired_at=1782578016&sign=3d9692859bb818ff1cb138bde397a963&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="鸣潮神-温柔">
+        <img class="char-sprite" id="char_mixue" src="https://t2.chatglm.cn/file/6a3963dd7422736f6258295e.png?expired_at=1782578016&sign=821fc20cfa59444f9e2c443bcd442f12&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="米学长">
+        <img class="char-sprite" id="char_mixiao" src="https://t2.chatglm.cn/file/6a3963dd7422736f6258295d.png?expired_at=1782578016&sign=5dc8ba08d41af312a170e88e06cfd978&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="米孝子">
+        <img class="char-sprite" id="char_boss" src="https://t2.chatglm.cn/file/6a3963d28afe0570117ad2f9.png?expired_at=1782578016&sign=1935080387b2927f3ac5c29f4f666f07&ext=png&x-oss-process=image/resize,w_1080/format,webp" alt="老米">
+    </div>
+    <div id="dialog-box">
+        <div id="speaker">我</div>
+        <div id="dialog-text">今天又是被原神折磨的一天。版本末尾长草长到发霉，深渊无聊到想睡觉。</div>
+    </div>
+    <div id="choices"></div>
+    <div id="hint">点击屏幕继续</div>
+    <div id="affection">好感度: 0</div>
+    <div id="end-screen">
+        <h1>游戏结束</h1>
+        <p>感谢游玩《鸣潮：神降之时》</p>
+        <button id="restart-btn">重新开始</button>
+    </div>
+</div>
+<script>
+// 背景色映射
+const bgColors = {
+    bg_room: "#646464", bg_mc_start: "#282850", bg_mc_world: "#3c78b4",
+    bg_bad: "#3c1414", bg_battle: "#641e1e", bg_end: "#ffdcbc", bg_night: "#141432"
+};
+
+// 背景图片映射 - 加载你的背景图
+const bgImages = {
+    bg_room: "https://t2.chatglm.cn/file/6a3963df8afe0570117ad326.jpg?expired_at=1782578016&sign=68cbbfd6672ade3dbb15d86184fefb31&ext=jpg&x-oss-process=image/resize,w_1080/format,webp",
+    bg_mc_world: "https://t2.chatglm.cn/file/6a3963df8afe0570117ad32c.png?expired_at=1782578016&sign=c40f5d4f5c8afee42b2a3fd632ce551e&ext=png&x-oss-process=image/resize,w_1080/format,webp"
+};
+
+// 角色映射
+const charMap = {
+    shen_normal: "shen_normal", shen_angry: "shen_angry", shen_soft: "shen_soft",
+    char_mixue: "char_mixue", char_mixiao: "char_mixiao", char_boss: "char_boss", None: null
+};
+
+// 剧情数据
+const storyData = {
+    0: ["bg_room", null, "我", "今天又是被原神折磨的一天。版本末尾长草长到发霉，深渊无聊到想睡觉。", [], 1],
+    1: ["bg_room", null, "我", "算了，打开鸣潮吧。听说今汐老婆又出新剧情了，嘿嘿嘿。", [], 2],
+    2: ["bg_room", null, "系统", "鸣潮 启动中…… 残响连接成功……\n警告！检测到未知能量入侵！", [], 3],
+    3: ["bg_room", null, "???", "（一道闪瞎狗眼的光从屏幕里炸出来）", [], 4],
+    4: ["bg_room", null, "我", "卧槽？！我的显卡！我的电费！", [], 5],
+    5: ["bg_mc_start", null, "???", "吾乃鸣潮之神！跨界而来，只为寻一有缘人——就是你！", [], 6],
+    6: ["bg_mc_start", "shen_normal", "鸣潮神", "简单来说：老米要搞垮鸣潮，我需要一个勇者帮我打架。包吃包住。", [], 7],
+    7: ["bg_mc_start", "shen_normal", "鸣潮神", "所以，你愿意跟我走吗？", [["走！原神已经欠我一个满意版本了", 8, 3], ["先说清楚，包吃包住是几个意思", 9, 2], ["我老婆今汐在鸣潮等你吗", 10, 1]], null],
+    8: ["bg_mc_start", "shen_angry", "鸣潮神", "好！就凭你这份对原神的怨念，我封你为'反米先锋'！", [], 11],
+    9: ["bg_mc_start", "shen_soft", "鸣潮神", "就是字面意思。我在鸣潮世界有套别墅，还带声骸牧场。", [], 11],
+    10: ["bg_mc_start", "shen_normal", "鸣潮神", "……你加入之后，今汐就是你的战友了。别想歪。", [], 11],
+    11: ["bg_mc_world", "shen_normal", "鸣潮神", "言归正传。老米最近搞了个'跨次元商业战争'计划，要吞掉鸣潮。", [], 12],
+    12: ["bg_mc_world", "shen_normal", "鸣潮神", "他的手段极其卑劣——派人潜入鸣潮世界，偷我们的声骸。", [], 13],
+    13: ["bg_mc_world", null, "我", "偷声骸？这不就是抄作业吗？", [], 14],
+    14: ["bg_mc_world", "shen_angry", "鸣潮神", "没错！他把自己的声骸系统做得很烂，就眼红我们的！", [], 15],
+    15: ["bg_mc_world", null, "我", "等等，你们两个不都是库洛和老米的设定吗……算了不深究了。", [], 16],
+    16: ["bg_mc_world", "shen_normal", "鸣潮神", "总之，老米派了两个手下潜入了。一个是米学长，一个是米孝子。", [], 17],
+    17: ["bg_mc_world", "shen_normal", "鸣潮神", "他们来了。看那边——", [], 18],
+    18: ["bg_bad", "char_mixue", "米学长", "（正在对着一个声骸拍照）这个建模不错，我拍下来回去让策划'参考'一下。", [], 19],
+    19: ["bg_bad", "char_mixiao", "米孝子", "学长学长！那边有个宝箱！我们把这个也抄过去，改成原神宝箱！", [], 20],
+    20: ["bg_bad", null, "我", "他们居然在明目张胆地抄……", [], 21],
+    21: ["bg_bad", "shen_angry", "鸣潮神", "住手！那是我们的声骸！你们已经有一个差不多的大世界了还想怎样！", [], 22],
+    22: ["bg_bad", "char_mixue", "米学长", "哟，鸣潮神？你那游戏月活有我们十分之一吗？也配管我？", [], 23],
+    23: ["bg_bad", "char_mixiao", "米孝子", "就是就是！原神年收入多少你知道吗？你鸣潮卖几个卡池？", [], 24],
+    24: ["bg_bad", "shen_angry", "鸣潮神", "你——！", [], 25],
+    25: ["bg_bad", null, "我", "别跟他们吵了，直接干！", [["大喊：你们原神3.0都还没做完就来偷东西？", 26, 3], ["掏出手机当场给鸣潮氪一单以示忠诚", 27, 2], ["冷静地给米学长看原神最近的差评", 28, 1]], null],
+    26: ["bg_bad", "char_mixue", "米学长", "你——！我们3.0进度很顺利的！只是……只是在打磨！", [], 29],
+    27: ["bg_bad", "char_mixiao", "米孝子", "你氪了？氪了多少？让我看看流水——什么才648？我们原神一单648算什么！", [], 29],
+    28: ["bg_bad", "char_mixue", "米学长", "差评？那些都是黑子！真正懂原神的人都知道——呃，这个节奏确实有点问题……", [], 29],
+    29: ["bg_bad", "shen_angry", "鸣潮神", "趁他们动摇，出击！", [], 30],
+    30: ["bg_battle", "shen_angry", "鸣潮神", "残响共鸣·声骸召唤——出来吧，哀声鸷！", [], 31],
+    31: ["bg_battle", null, "我", "哀声鸷？！那不是鸣潮里最帅的声骸吗！", [], 32],
+    32: ["bg_battle", "char_mixue", "米学长", "好大的鸟！我要拍下来回去建模——", [], 33],
+    33: ["bg_battle", "shen_angry", "鸣潮神", "你拍个屁！哀声鸷，给他来一发音波炮！", [], 34],
+    34: ["bg_battle", "char_mixue", "米学长", "啊啊啊！我的手机！拍糊了！", [], 35],
+    35: ["bg_battle", "char_mixiao", "米孝子", "学长别怕！我来保护你！看我的——原神元素战技！", [], 36],
+    36: ["bg_battle", null, "我", "你在鸣潮世界里用原神技能？这能行吗？", [], 37],
+    37: ["bg_battle", "char_mixiao", "米孝子", "为什么不行——（试图释放风元素，结果放了个屁）", [], 38],
+    38: ["bg_battle", null, "我", "……", [], 39],
+    39: ["bg_battle", "shen_soft", "鸣潮神", "……你看，在鸣潮的世界里，原神的力量是水土不服的。", [], 40],
+    40: ["bg_battle", "char_mixue", "米学长", "可恶！米孝子你个废物！撤！我们先回去搬救兵！", [], 41],
+    41: ["bg_battle", "char_mixiao", "米孝子", "学长等等我——！", [], 42],
+    42: ["bg_night", "shen_soft", "鸣潮神", "呼……暂时击退了。不过老米本体肯定还会来。", [], 43],
+    43: ["bg_night", null, "我", "话说，你作为鸣潮之神，怎么是个男的？我还以为会是今汐那样的美女。", [], 44],
+    44: ["bg_night", "shen_angry", "鸣潮神", "你看谁家神明是按颜值分配的？我是靠实力上位的好吗！", [], 45],
+    45: ["bg_night", null, "我", "那你有什么实力？", [], 46],
+    46: ["bg_night", "shen_normal", "鸣潮神", "我能让鸣潮的卡池出货率提高0.3%。", [["才0.3%？老米那边都免费送原石了", 47, 1], ["够了！0.3%也是爱！", 48, 3], ["那你能让我抽到今汐吗", 49, 2]], null],
+    47: ["bg_night", "shen_soft", "鸣潮神", "……你什么时候见过老米免费送东西还不用肝的？别天真了。", [], 50],
+    48: ["bg_night", "shen_soft", "鸣潮神", "说得好！0.3%加上你的运气，那就是——大概还是抽不到。", [], 50],
+    49: ["bg_night", "shen_angry", "鸣潮神", "今汐？她是我手下最猛的将军。你想要她？先过我这一关。", [], 50],
+    50: ["bg_night", "shen_normal", "鸣潮神", "说正经的。老米这次来势汹汹，我怀疑他带了什么秘密武器。", [], 51],
+    51: ["bg_night", null, "我", "什么武器？", [], 52],
+    52: ["bg_night", "shen_angry", "鸣潮神", "据情报，他要把原神的'圣遗物系统'植入鸣潮，让所有玩家陷入无尽的刷词条地狱。", [], 53],
+    53: ["bg_night", null, "我", "太恶毒了！鸣潮的声骸系统虽然也肝，但至少还能看立绘啊！", [], 54],
+    54: ["bg_night", "shen_soft", "鸣潮神", "没错。一旦他成功，鸣潮玩家就会像原神玩家一样，每天对着双暴词条哭。", [], 55],
+    55: ["bg_night", null, "我", "不行，这种事绝不能让它发生！", [], 56],
+    56: ["bg_night", "shen_soft", "鸣潮神", "在老米下次来之前，还有点时间。要不要……我带你去鸣潮世界里转转？", [], 57],
+    57: ["bg_night", null, "我", "真的假的？我能进游戏里面？！", [], 58],
+    58: ["bg_night", "shen_normal", "鸣潮神", "你已经是我的契约者了，当然可以。不过进去之后别乱摸声骸，上次有个玩家被燎焰之猩追了三条街。", [], 59],
+    59: ["bg_mc_start", null, "我", "（一阵眩晕之后，睁眼——）", [], 60],
+    60: ["bg_mc_world", null, "我", "卧槽……这是……鸣潮的大世界？！风都能感觉到！", [], 61],
+    61: ["bg_mc_world", null, "我", "远处那个是——今州城？！还有那个浮在空中的是黑石矿区？！", [], 62],
+    62: ["bg_mc_world", "shen_soft", "鸣潮神", "欢迎来到我的世界。怎么样，比屏幕里好看吧？", [], 63],
+    63: ["bg_mc_world", null, "我", "好看到了不知道哪里去了！我感觉我整个人都升华了！", [], 64],
+    64: ["bg_mc_world", "shen_normal", "鸣潮神", "既然来了，我带你逛逛。不过——你想去哪？", [["去今州城逛夜市，吃烤声骸肉串", 65, 3], ["去海边看残星海岸的日落", 66, 2], ["去找今汐要签名照", 67, 1]], null],
+    65: ["bg_mc_world", "shen_soft", "鸣潮神", "行，今州城夜市。不过你别说'烤声骸肉串'，声骸们听了会打人的。", [], 68],
+    66: ["bg_mc_world", "shen_soft", "鸣潮神", "残星海岸？好品味。那里是鸣潮世界看日落最美的地方。", [], 90],
+    67: ["bg_mc_world", "shen_angry", "鸣潮神", "……你就那么想见今汐？", [], 105],
+    68: ["bg_mc_world", null, "我", "（今州城的夜市灯火通明，到处都是NPC和玩家混在一起）", [], 69],
+    69: ["bg_mc_world", null, "我", "这个烤串摊——老板是一只在烤肉的小型声骸？！", [], 70],
+    70: ["bg_mc_world", "shen_soft", "鸣潮神", "对，它叫'烤肉仔'，是我们这的特产声骸。被驯化之后专门摆摊的。", [], 71],
+    71: ["bg_mc_world", null, "我", "鸣潮世界的声骸还能摆摊？老米那边连个NPC都不会动！", [], 72],
+    72: ["bg_mc_world", "shen_soft", "鸣潮神", "尝尝这个烤串。我请客——毕竟我是神，不差钱。", [], 73],
+    73: ["bg_mc_world", null, "我", "（一口咬下去）这……这比现实中的烤串还好吃！什么味道？", [], 74],
+    74: ["bg_mc_world", "shen_normal", "鸣潮神", "那是残响精华的味道。吃了能恢复体力的那种。", [], 75],
+    75: ["bg_mc_world", null, "我", "所以我吃烤串等于喝体力药？这世界太离谱了。", [], 76],
+    76: ["bg_mc_world", "shen_soft", "鸣潮神", "还有这个——声骸棉花糖。你看，它还会自己变换形状。", [], 77],
+    77: ["bg_mc_world", null, "我", "（棉花糖变成了哀声鸷的形状）好可爱！但是……吃掉它会不会有负罪感？", [], 78],
+    78: ["bg_mc_world", "shen_normal", "鸣潮神", "不会。它就是棉花糖变的。别想太多。", [], 79],
+    79: ["bg_mc_world", null, "我", "（两人边走边吃，路过一个套圈摊）", [], 80],
+    80: ["bg_mc_world", "shen_soft", "鸣潮神", "想玩吗？奖品是今汐的等大手办。", [["认真瞄准，一击必中", 82, 3], ["让鸣潮神用神力偷偷帮忙", 83, 2], ["直接跟老板说：我是鸣潮神的契约者，打折不", 84, 1]], null],
+    82: ["bg_mc_world", null, "我", "（唰——套中了！）哈哈哈哈！手感还在！", [], 85],
+    83: ["bg_mc_world", null, "我", "（鸣潮神偷偷吹了口气，套圈在空中拐了个弯套中）", [], 85],
+    84: ["bg_mc_world", null, "我", "（老板声骸看了看我，又看了看鸣潮神，直接把手办塞我手里：拿走拿走，别挡着我做生意）", [], 85],
+    85: ["bg_mc_world", "shen_soft", "鸣潮神", "……你游戏里打声骸怎么没这准度？", [], 86],
+    86: ["bg_mc_world", null, "我", "这不一样！套圈不用看技能CD！", [], 87],
+    87: ["bg_mc_world", "shen_soft", "鸣潮神", "行吧，今汐手办归你了。不过别对她做什么奇怪的事。", [], 88],
+    88: ["bg_mc_world", null, "我", "我只是放在床头欣赏！纯欣赏！", [], 89],
+    89: ["bg_mc_world", "shen_soft", "鸣潮神", "……你说的'床头'让我很不安。算了，下一站。", [], 116],
+    90: ["bg_mc_world", null, "我", "（两人来到海边，夕阳把整片海面染成金色）", [], 91],
+    91: ["bg_mc_world", null, "我", "这也太美了吧……游戏里的画面再好也比不上亲眼看到。", [], 92],
+    92: ["bg_mc_world", "shen_soft", "鸣潮神", "嗯。我每天都会来这里坐一会儿。平时只有我一个人。", [], 93],
+    93: ["bg_mc_world", null, "我", "一个人？你是神也会孤独吗？", [], 94],
+    94: ["bg_mc_world", "shen_soft", "鸣潮神", "神也会孤独的。尤其是……玩家离线之后，整个世界就只剩我一个。", [], 95],
+    95: ["bg_mc_world", null, "我", "……", [], 96],
+    96: ["bg_mc_world", null, "我", "（气氛突然有点伤感，得说点什么）", [["以后我每天上线陪你", 97, 3], ["那你教我钓鱼吧，边钓边聊", 98, 2], ["直接放鸣潮BGM，用音乐打破尴尬", 99, 1]], null],
+    97: ["bg_mc_world", "shen_soft", "鸣潮神", "……你说真的？每天？", [], 100],
+    98: ["bg_mc_world", null, "我", "（两人开始钓鱼，结果钓上来一只正在玩手机的乌龟）", [], 100],
+    99: ["bg_mc_world", null, "我", "（BGM响起：异世相遇，尽享美味。鸣潮神一脸黑线看着你）", [], 100],
+    100: ["bg_mc_world", null, "我", "真的。就算长草期我也上线，至少来海边坐一会儿。", [], 101],
+    101: ["bg_mc_world", "shen_soft", "鸣潮神", "（他笑了，夕阳照在他脸上，第一次觉得这个男神还挺好看的）……谢谢你。", [], 102],
+    102: ["bg_mc_world", null, "我", "（等等我刚才在想什么？他是男的啊！一定是夕阳太刺眼了！）", [], 103],
+    103: ["bg_mc_world", "shen_normal", "鸣潮神", "你在脸红什么？", [], 104],
+    104: ["bg_mc_world", null, "我", "没有！太阳晒的！我们继续走！", [], 116],
+    105: ["bg_mc_world", null, "我", "那当然！她可是我老婆——啊不是，我最喜欢的角色！", [], 106],
+    106: ["bg_mc_world", "shen_angry", "鸣潮神", "你信不信我现在就把你的账号封了。", [], 107],
+    107: ["bg_mc_world", null, "我", "别别别！我开玩笑的！主要是想看看真实的今州将军有多帅！", [], 108],
+    108: ["bg_mc_world", "shen_soft", "鸣潮神", "哼。跟我来吧。她在今州城司令部。", [], 109],
+    109: ["bg_mc_world", null, "我", "（到了司令部门口，一个英姿飒爽的身影正在指挥军队）", [], 110],
+    110: ["bg_mc_world", null, "我", "今汐！本人比立绘还好看十倍！", [], 111],
+    111: ["bg_mc_world", "shen_normal", "鸣潮神", "今汐，这位是我的契约者。带他在城里转转。", [], 112],
+    112: ["bg_mc_world", null, "今汐（远处）", "是，神大人。……不过他为什么一直盯着我看？", [], 113],
+    113: ["bg_mc_world", "shen_angry", "鸣潮神", "因为他是个变态。别理他。", [], 114],
+    114: ["bg_mc_world", null, "我", "我不是变态！我是你的勇者！好歹给我留点面子！", [], 115],
+    115: ["bg_mc_world", "shen_soft", "鸣潮神", "行了行了，签名照我帮你要到。走，别在这丢人了。", [], 116],
+    116: ["bg_night", "shen_soft", "鸣潮神", "天黑了。今州城的夜景……你还没见过吧？", [], 117],
+    117: ["bg_night", null, "我", "确实没见过。游戏里晚上我都在肝声骸，哪有空看风景。", [], 118],
+    118: ["bg_night", "shen_soft", "鸣潮神", "今天就别肝了。陪我坐会儿。", [], 119],
+    119: ["bg_night", null, "我", "（两人坐在今州城的城墙上，看着远处的声骸们在月光下悠闲地散步）", [], 120],
+    120: ["bg_night", null, "我", "说起来，你作为鸣潮之神，平时都干嘛？", [], 121],
+    121: ["bg_night", "shen_normal", "鸣潮神", "监督卡池概率，修复bug，偶尔去玩家梦里托梦催他们上线。", [], 122],
+    122: ["bg_night", null, "我", "托梦催上线？？你也太卑微了吧！", [], 123],
+    123: ["bg_night", "shen_soft", "鸣潮神", "没办法，月活不够，神也得卷KPI。", [], 124],
+    124: ["bg_night", null, "我", "……你跟老米有什么区别？", [], 125],
+    125: ["bg_night", "shen_angry", "鸣潮神", "区别大了！我不逼氪！我只逼肝！", [], 126],
+    126: ["bg_night", null, "我", "好像也没好到哪去……", [], 127],
+    127: ["bg_night", "shen_soft", "鸣潮神", "（沉默了一会儿）其实……今天很开心。很久没有这样和人聊天了。", [], 128],
+    128: ["bg_night", null, "我", "你可是神啊，想聊天随便找个NPC不就行了？", [], 129],
+    129: ["bg_night", "shen_soft", "鸣潮神", "NPC是设定好的对话。而你……是不在我的剧本里的。", [], 130],
+    130: ["bg_night", null, "我", "（这话怎么有点……让人心动？不对不对，他是男的，我肯定是饿昏了。）", [], 131],
+    131: ["bg_night", null, "我", "咳咳，说正经的。老米那边——", [["你有什么计划对付他？", 132, 2], ["我帮你想想怎么提高鸣潮月活", 133, 3], ["先别说老米了，再坐一会儿吧", 134, 1]], null],
+    132: ["bg_night", "shen_normal", "鸣潮神", "计划倒是有。但需要你的信念之力作为引子。你准备好就行。", [], 150],
+    133: ["bg_night", "shen_soft", "鸣潮神", "你帮我提高月活？你一个人氪648可不够。", [], 135],
+    134: ["bg_night", "shen_soft", "鸣潮神", "……好。那就再坐一会儿。", [], 141],
+    135: ["bg_night", null, "我", "不是氪金！是去论坛安利！让更多人知道鸣潮的好！", [], 136],
+    136: ["bg_night", "shen_soft", "鸣潮神", "……你是认真的？", [], 137],
+    137: ["bg_night", null, "我", "当然！我虽然嘴上天天骂，但鸣潮真的好玩的，我心里有数。", [], 138],
+    138: ["bg_night", "shen_soft", "鸣潮神", "（他看着我，眼神比刚才的星星还亮）……谢谢你。真的。", [], 139],
+    139: ["bg_night", null, "我", "（再这样下去我怕我会弯……赶紧转移话题！）", [], 140],
+    140: ["bg_night", "shen_normal", "鸣潮神", "放心，只要有你在，鸣潮就不会输。我们走吧，老米来了。", [], 150],
+    141: ["bg_night", null, "我", "（月光洒在城墙上，远处传来声骸的低鸣，意外地安宁）", [], 142],
+    142: ["bg_night", "shen_soft", "鸣潮神", "对了，送你个东西。", [], 143],
+    143: ["bg_night", null, "我", "什么？", [], 144],
+    144: ["bg_night", "shen_normal", "鸣潮神", "这是'残响之铃'。遇到危险的时候摇一下，我能感应到。算是……我们的信物吧。", [], 145],
+    145: ["bg_night", null, "我", "信物？？这听起来像定情信物啊！", [], 146],
+    146: ["bg_night", "shen_angry", "鸣潮神", "你能不能别什么都往那方面想！这是战斗道具！", [], 147],
+    147: ["bg_night", null, "我", "好好好，战斗道具。那我收下了。", [], 148],
+    148: ["bg_night", "shen_soft", "鸣潮神", "嗯。记住，不管发生什么——我都能感应到你。", [], 149],
+    149: ["bg_night", null, "我", "（……这句话怎么听都比战斗道具更像情话啊。）", [], 150],
+    150: ["bg_bad", null, "老米", "（天空裂开，一个巨大的身影降临）桀桀桀——鸣潮神，好久不见。", [], 151],
+    151: ["bg_bad", "char_boss", "老米", "听说你找了个凡人当帮手？就这？", [], 152],
+    152: ["bg_bad", "shen_angry", "鸣潮神", "老米！你偷声骸就算了，还要植入圣遗物系统？你还有底线吗？", [], 153],
+    153: ["bg_bad", "char_boss", "老米", "底线？我的底线就是财报上的数字。你不懂，这叫'商业化成熟'。", [], 154],
+    154: ["bg_bad", null, "我", "好家伙，把割韭菜说得这么清新脱俗。", [], 155],
+    155: ["bg_bad", "char_boss", "老米", "哼，小鬼，你知不知道原神的流水——", [], 156],
+    156: ["bg_bad", null, "我", "停！每次都说流水，你自己不嫌烦玩家都嫌烦了！", [], 157],
+    157: ["bg_bad", "char_boss", "老米", "既然你这么有骨气，那就来打吧！看我的终极武器——'原神4.8版本之力'！", [["用鸣潮的开放世界质量正面硬刚", 158, 3], ["用'原神长草期'反讽他自己的游戏", 159, 2], ["掏出一碗泡面说：至少我吃得比原神玩家好", 160, 1]], null],
+    158: ["bg_bad", "shen_angry", "鸣潮神", "鸣潮的大世界探索，战斗手感，哪一样不比你的强！", [], 161],
+    159: ["bg_bad", null, "我", "你的4.8？你是说那个让玩家等了三个月的版本？我鸣潮一周一个活动谢谢。", [], 161],
+    160: ["bg_bad", null, "我", "（掏出泡面）你看，原神玩家等更新的时候只能吃泡面，我鸣潮玩家边吃边打声骸。", [], 161],
+    161: ["bg_bad", "char_boss", "老米", "你——！可恶！米学长！米孝子！给我上！", [], 162],
+    162: ["bg_battle", "char_mixue", "米学长", "是！老米大人！看我的——'流水剑法'！", [], 163],
+    163: ["bg_battle", "char_mixiao", "米孝子", "还有我的——'孝心盾'！刀枪不入！", [], 164],
+    164: ["bg_battle", "shen_angry", "鸣潮神", "就这？看我的声骸大军！", [], 165],
+    165: ["bg_battle", null, "我", "声骸召唤——无妄者！燎焰之猩！辉萤军势！全给我上！", [], 166],
+    166: ["bg_battle", "char_mixue", "米学长", "这么多声骸？！我们原神只有元素反应啊！", [], 167],
+    167: ["bg_battle", "char_mixiao", "米孝子", "学长！'孝心盾'裂了！裂了啊！", [], 168],
+    168: ["bg_battle", "char_mixue", "米学长", "废物！算了，我放大招——'限定角色复刻剑'！", [], 169],
+    169: ["bg_battle", null, "我", "复刻剑？那不就是旧角色换个池子再卖一次吗？", [], 170],
+    170: ["bg_battle", "shen_soft", "鸣潮神", "他连打架都在割韭菜……真是可悲。", [], 171],
+    171: ["bg_battle", "char_boss", "老米", "够了！你们这些废物让开！我要亲自出手了！", [], 172],
+    172: ["bg_battle", "char_boss", "老米", "看我的终极禁术——'圣遗物植入·痛苦强化'！", [], 173],
+    173: ["bg_battle", null, "我", "来了！他在往鸣潮世界里注入圣遗物系统！", [], 174],
+    174: ["bg_battle", "shen_angry", "鸣潮神", "唔……好恶心……我感觉到无尽的双暴词条正在侵蚀我的力量……", [], 175],
+    175: ["bg_battle", null, "我", "鸣潮神！坚持住！", [["大喊：鸣潮玩家从不刷词条！我们直接看脸！", 176, 3], ["掏出手机展示鸣潮的声骸爆率给他看", 177, 2], ["对老米喊：圣遗物系统连你自己玩家都骂", 178, 1]], null],
+    176: ["bg_battle", "shen_angry", "鸣潮神", "没错！鸣潮的随机性是优雅的随机！不是你那种折磨人的随机！", [], 179],
+    177: ["bg_battle", "shen_soft", "鸣潮神", "你看，声骸掉落虽然也看脸，但至少不掉头发……", [], 179],
+    178: ["bg_battle", "char_boss", "老米", "闭嘴！圣遗物系统是成熟的商业化设计！是——是艺术的！", [], 179],
+    179: ["bg_battle", "shen_angry", "鸣潮神", "老米，你错了。玩家的热爱不是用来折磨的。", [], 180],
+    180: ["bg_battle", "shen_angry", "鸣潮神", "鸣潮之所以让玩家喜欢，不是因为肝，是因为——好玩！", [], 181],
+    181: ["bg_battle", null, "我", "说得好！原神也有好的地方，但你不能拿好的地方当借口来搞烂的！", [], 182],
+    182: ["bg_battle", "char_boss", "老米", "你一个凡人有什么资格教训我！", [], 183],
+    183: ["bg_battle", "shen_angry", "鸣潮神", "他不是一个人！他背后是所有鸣潮玩家的信念！", [], 184],
+    184: ["bg_battle", null, "我", "没错！虽然我们人少，但我们嘴硬啊！", [], 185],
+    185: ["bg_battle", "shen_soft", "鸣潮神", "……你这个形容能不能换一个。", [], 186],
+    186: ["bg_battle", null, "我", "好吧，是——我们虽然人少，但每个人都是真心喜欢鸣潮的！", [], 187],
+    187: ["bg_battle", "shen_angry", "鸣潮神", "这就对了！终极奥义——鸣潮共鸣·全体玩家信念解放！", [], 188],
+    188: ["bg_battle", null, "我", "（我握紧残响之铃，将全部信念灌注进去！）", [], 189],
+    189: ["bg_battle", "char_boss", "老米", "什么？！这股力量——这不是氪金的力量，这是——热爱？！", [], 190],
+    190: ["bg_battle", "shen_angry", "鸣潮神", "没错！热爱！你早就忘了这种感觉了吧，老米！", [], 191],
+    191: ["bg_battle", "char_boss", "老米", "不——不可能！我的流水！我的KPI！我的——", [], 192],
+    192: ["bg_battle", "char_mixue", "米学长", "老米大人！您的发际线后退了！", [], 193],
+    193: ["bg_battle", "char_mixiao", "米孝子", "学长！这种时候你关注发际线？！", [], 194],
+    194: ["bg_battle", "char_boss", "老米", "够了！这次算你们赢！但我会回来的——带着原神6.0！", [], 195],
+    195: ["bg_battle", null, "我", "6.0？你4.8都没做完呢大哥！", [], 196],
+    196: ["bg_battle", "char_boss", "老米", "（化作一缕青烟消失，临走前掉了一串原石）", [], 197],
+    197: ["bg_battle", null, "我", "他掉了原石……能用在鸣潮里吗？", [], 198],
+    198: ["bg_battle", "shen_soft", "鸣潮神", "不能。但你可以收藏，当个纪念品。", [], 199],
+    199: ["bg_end", "shen_soft", "鸣潮神", "老米暂时撤退了。圣遗物系统的侵蚀也被清除了。", [], 200],
+    200: ["bg_end", "shen_soft", "鸣潮神", "鸣潮的世界恢复了和平。声骸们又开始快乐地到处乱跑了。", [], 201],
+    201: ["bg_end", null, "我", "太好了。话说，我以后还能来鸣潮世界吗？", [], 202],
+    202: ["bg_end", "shen_normal", "鸣潮神", "当然。你手里有残响之铃，随时都能来。", [], 203],
+    203: ["bg_end", null, "我", "那下次约会——啊不是，下次行动什么时候？", [], 204],
+    204: ["bg_end", "shen_angry", "鸣潮神", "……你刚才说了'约会'对吧？", [], 205],
+    205: ["bg_end", null, "我", "口误！纯属口误！", [], 206],
+    206: ["bg_end", "shen_soft", "鸣潮神", "哼。不过……如果你愿意来的话，烤肉仔说你上次买的烤串给它带来了不少回头客。", [], 207],
+    207: ["bg_end", null, "我", "所以我现在是鸣潮世界的带货主播了？", [], 208],
+    208: ["bg_end", "shen_soft", "鸣潮神", "哈哈。总之，鸣潮的大门随时为你敞开。", [], 209],
+    209: ["bg_end", null, "我", "那我得先回现实了，明天还要上班。", [], 210],
+    210: ["bg_end", "shen_normal", "鸣潮神", "去吧。记得每天上线，不然我会……不管老米什么时候再来，只要你还在玩鸣潮——我就在。", [], 211],
+    211: ["bg_end", null, "我", "（他欲言又止的样子，好像刚才想说什么别的话。算了，下次见面再问他。）", [], 212],
+    212: ["bg_end", "shen_soft", "鸣潮神", "再会了，我的勇者。", [], 300],
+    300: ["bg_room", null, "我", "（猛地睁开眼，发现自己趴在电脑桌前，屏幕还停在鸣潮的登录界面）", [], 301],
+    301: ["bg_room", null, "我", "刚才那些……是做梦吗？什么鸣潮神，什么老米，果然是熬夜打游戏打魔怔了。", [], 302],
+    302: ["bg_room", null, "我", "等等，桌面上怎么多了一个图标？", [], 303],
+    303: ["bg_room", null, "我", "《原神》？我电脑里什么时候有原神了？！我的固态硬盘才256G啊！", [], 304],
+    304: ["bg_room", "shen_normal", "鸣潮神", "（突然从屏幕里探出头）是我帮你下的！知己知彼，百战不殆嘛。", [], 305],
+    305: ["bg_room", null, "我", "你出来干嘛！快给我卸载了！我还要存鸣潮的更新包呢！", [], 306],
+    306: ["bg_room", "shen_soft", "鸣潮神", "别急嘛，我修改了原神的内核。你看，现在里面全是扫雷和蜘蛛纸牌。", [], 307],
+    307: ["bg_room", null, "我", "……你无聊到把原神改成了复古游戏合集？", [], 308],
+    308: ["bg_room", "shen_angry", "鸣潮神", "这叫精神攻击！让老米的玩家沉迷扫雷，无心打深渊！", [], 309],
+    309: ["bg_room", null, "我", "神明大人，你的格局能不能稍微大一点……", [], 310],
+    310: ["bg_room", "shen_soft", "鸣潮神", "好啦，不闹了。我这就卸载。不过你要记得我们的约定，每天上线看看我。", [], 311],
+    311: ["bg_room", null, "我", "知道了知道了。不过下次能不能别在我睡觉的时候托梦催更新？很吓人的。", [], 312],
+    312: ["bg_room", "shen_normal", "鸣潮神", "（笑）那得看你的月活表现了。走了，鸣潮启动！", [], 313],
+    313: ["bg_room", null, "系统", "（画面渐渐变黑，屏幕上浮现出一行大字）\n感谢游玩《鸣潮：神降之时》\n（点击屏幕重新开始）", [], null]
+};
+
+class Galgame {
+    constructor() {
+        this.bgLayer = document.getElementById('bg-layer');
+        this.charLayer = document.getElementById('char-layer');
+        this.speakerEl = document.getElementById('speaker');
+        this.dialogTextEl = document.getElementById('dialog-text');
+        this.choicesEl = document.getElementById('choices');
+        this.affectionEl = document.getElementById('affection');
+        this.endScreenEl = document.getElementById('end-screen');
+        this.restartBtn = document.getElementById('restart-btn');
+
+        this.storyId = 0;
+        this.choiceSelected = 0;
+        this.inChoice = false;
+        this.ended = false;
+        this.affection = 0;
+
+        this.bindEvents();
+        this.initGame();
+    }
+
+    initGame() {
+        this.updateScene();
+        this.updateAffection();
+    }
+
+    updateScene() {
+        if (!storyData[this.storyId]) {
+            this.gameOver();
+            return;
+        }
+        const [bgKey, charKey, speaker, text, choices] = storyData[this.storyId];
+
+        // 检查是否有对应场景的背景图片
+        if (bgImages[bgKey]) {
+            this.bgLayer.style.backgroundImage = `url('${bgImages[bgKey]}')`;
+            this.bgLayer.style.backgroundColor = 'transparent';
+        } else {
+            this.bgLayer.style.backgroundImage = 'none'; // 清除背景图
+            this.bgLayer.style.backgroundColor = bgColors[bgKey] || '#333'; // 使用默认背景色
+        }
+
+        this.hideAllChars();
+        if (charKey && charMap[charKey]) {
+            document.getElementById(charMap[charKey]).classList.add('active');
+        }
+
+        this.speakerEl.textContent = speaker;
+        this.dialogTextEl.textContent = text;
+
+        if (choices && choices.length > 0) {
+            this.showChoices(choices);
+            this.inChoice = true;
+        } else {
+            this.hideChoices();
+            this.inChoice = false;
+        }
+    }
+
+    hideAllChars() {
+        const chars = document.querySelectorAll('.char-sprite');
+        chars.forEach(char => char.classList.remove('active'));
+    }
+
+    showChoices(choices) {
+        this.choicesEl.innerHTML = '';
+        this.choicesEl.classList.add('active');
+        choices.forEach((choice, index) => {
+            const btn = document.createElement('button');
+            btn.className = `choice-btn ${index === this.choiceSelected ? 'selected' : ''}`;
+            btn.textContent = choice[0];
+            btn.dataset.index = index;
+            this.choicesEl.appendChild(btn);
+        });
+    }
+
+    hideChoices() {
+        this.choicesEl.classList.remove('active');
+        this.choicesEl.innerHTML = '';
+    }
+
+    updateSelectedChoice() {
+        const choices = document.querySelectorAll('.choice-btn');
+        choices.forEach((btn, index) => {
+            if (index === this.choiceSelected) {
+                btn.classList.add('selected');
+            } else {
+                btn.classList.remove('selected');
+            }
+        });
+    }
+
+    updateAffection() {
+        this.affectionEl.textContent = `好感度: ${this.affection}`;
+    }
+
+    nextStory() {
+        if (this.ended) {
+            this.restartGame();
+            return;
+        }
+        if (!this.inChoice) {
+            const nextId = storyData[this.storyId][5];
+            if (nextId !== null && storyData[nextId]) {
+                this.storyId = nextId;
+                this.updateScene();
+            } else {
+                this.gameOver();
+            }
+        }
+    }
+
+    changeChoice(d) {
+        if (!this.inChoice) return;
+        const choices = storyData[this.storyId][4];
+        this.choiceSelected += d;
+        if (this.choiceSelected < 0) {
+            this.choiceSelected = choices.length - 1;
+        }
+        if (this.choiceSelected >= choices.length) {
+            this.choiceSelected = 0;
+        }
+        this.updateSelectedChoice();
+    }
+
+    selectChoice() {
+        if (!this.inChoice) return;
+        const choices = storyData[this.storyId][4];
+        const selectedChoice = choices[this.choiceSelected];
+        if (selectedChoice) {
+            this.affection += selectedChoice[2] || 0;
+            this.updateAffection();
+            this.storyId = selectedChoice[1];
+            this.inChoice = false;
+            this.hideChoices();
+            this.updateScene();
+        }
+    }
+
+    gameOver() {
+        this.ended = true;
+        this.endScreenEl.classList.add('active');
+    }
+
+    restartGame() {
+        this.storyId = 0;
+        this.choiceSelected = 0;
+        this.inChoice = false;
+        this.ended = false;
+        this.affection = 0;
+        this.endScreenEl.classList.remove('active');
+        this.hideChoices();
+        this.updateAffection();
+        this.updateScene();
+    }
+
+    bindEvents() {
+        document.getElementById('game-container').addEventListener('click', (e) => {
+            if (e.target.closest('.choice-btn')) return;
+            if (this.inChoice) {
+                this.selectChoice();
+            } else {
+                this.nextStory();
+            }
+        });
+
+        this.choicesEl.addEventListener('click', (e) => {
+            const btn = e.target.closest('.choice-btn');
+            if (btn) {
+                this.choiceSelected = parseInt(btn.dataset.index);
+                this.selectChoice();
+            }
+        });
+
+        let touchStartY = 0;
+        document.addEventListener('touchstart', (e) => {
+            touchStartY = e.touches[0].clientY;
+        });
+        document.addEventListener('touchend', (e) => {
+            if (!this.inChoice) return;
+            const touchEndY = e.changedTouches[0].clientY;
+            const diff = touchEndY - touchStartY;
+            if (diff < -30) {
+                this.changeChoice(1);
+            } else if (diff > 30) {
+                this.changeChoice(-1);
+            }
+        });
+
+        this.restartBtn.addEventListener('click', () => {
+            this.restartGame();
+        });
+
+        document.addEventListener('keydown', (e) => {
+            if (this.ended) return;
+            switch(e.key) {
+                case 'ArrowUp':
+                    this.changeChoice(-1);
+                    break;
+                case 'ArrowDown':
+                    this.changeChoice(1);
+                    break;
+                case 'Enter':
+                case ' ':
+                    if (this.inChoice) {
+                        this.selectChoice();
+                    } else {
+                        this.nextStory();
+                    }
+                    break;
+            }
+        });
+    }
+}
+
+window.addEventListener('load', () => {
+    new Galgame();
+});
+</script>
+</body>
+</html>
